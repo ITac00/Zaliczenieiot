@@ -1,8 +1,10 @@
 ﻿using Microsoft.Azure.Devices.Common.Exceptions;
 using ServiceSdkDemo.Lib;
+using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace ServiceSdkDemo.Console
+namespace ServiceSdkDemo.SystemConsole
 {
     internal static class FeatureSelector
     {
@@ -22,72 +24,80 @@ namespace ServiceSdkDemo.Console
             switch (feature)
             {
                 case 1:
-                    {
-                        System.Console.WriteLine("Type your message:");
-                        string messageText = System.Console.ReadLine() ?? "";
+                    System.Console.WriteLine("Type your message:");
+                    string messageText = System.Console.ReadLine() ?? string.Empty;
 
-                        System.Console.WriteLine("Type device ID:");
-                        string deviceId = System.Console.ReadLine() ?? "";
+                    System.Console.WriteLine("Type device ID:");
+                    string deviceId = System.Console.ReadLine() ?? string.Empty;
 
-                        await manager.SendMessage(messageText, deviceId);
-                        System.Console.WriteLine("Message sent!");
-                    }
+                    await manager.SendMessage(messageText, deviceId);
+                    System.Console.WriteLine("Message sent!");
                     break;
 
                 case 2:
+                    System.Console.WriteLine("Type device ID:");
+                    string methodDeviceId = System.Console.ReadLine() ?? string.Empty;
+                    try
                     {
-                        System.Console.WriteLine("Type device ID:");
-                        string deviceId = System.Console.ReadLine() ?? "";
-                        try
-                        {
-                            var result = await manager.ExecuteDeviceMethod("SendMessages", deviceId);
-                            System.Console.WriteLine($"Method executed with status {result}");
-                        }
-                        catch (DeviceNotFoundException)
-                        {
-                            System.Console.WriteLine("Device not connected!");
-                        }
+                        var result = await manager.ExecuteDeviceMethod("SendMessages", methodDeviceId);
+                        System.Console.WriteLine($"Method executed with status {result}");
+                    }
+                    catch (DeviceNotFoundException)
+                    {
+                        System.Console.WriteLine("Device not connected!");
                     }
                     break;
 
                 case 3:
-                    {
-                        System.Console.WriteLine("Type desired property name:");
-                        string propertyName = System.Console.ReadLine() ?? "";
+                    System.Console.WriteLine("Type desired property name:");
+                    string propertyName = System.Console.ReadLine() ?? string.Empty;
 
-                        System.Console.WriteLine("Type device ID:");
-                        string deviceId = System.Console.ReadLine() ?? "";
+                    System.Console.WriteLine("Type device ID:");
+                    string twinDeviceId = System.Console.ReadLine() ?? string.Empty;
 
-                        var random = new Random();
-                        await manager.UpdateDesiredTwin(deviceId, propertyName, random.Next());
-                    }
+                    var random = new Random();
+                    await manager.UpdateDesiredTwin(twinDeviceId, propertyName, random.Next());
+                    System.Console.WriteLine("Desired twin updated.");
                     break;
 
                 case 4:
+                    try
                     {
-                        var devices = opcUaManager.GetDevices();
+                        var devices = opcUaManager?.GetDevices() ?? new List<Lib.OpcUaDevice>();
                         if (devices.Count == 0)
                         {
-                            System.Console.WriteLine("No devices found.");
+                            System.Console.WriteLine("No devices found or unable to connect.");
                             break;
                         }
 
                         foreach (var d in devices)
                         {
-                            System.Console.WriteLine($"\nDevice: {d.Name}");
-                            System.Console.WriteLine($"  Status: {d.ProductionStatus}");
-                            System.Console.WriteLine($"  Workorder ID: {d.WorkorderId}");
-                            System.Console.WriteLine($"  Rate: {d.ProductionRate}");
-                            System.Console.WriteLine($"  Temp: {d.Temperature}°C");
-                            System.Console.WriteLine($"  Good: {d.GoodCount}, Bad: {d.BadCount}");
+                            try
+                            {
+                                System.Console.WriteLine($"\nDevice: {d.Name}");
+                                System.Console.WriteLine($"  Status: {d.ProductionStatus}");
+                                System.Console.WriteLine($"  Workorder ID: {d.WorkorderId}");
+                                System.Console.WriteLine($"  Rate: {d.ProductionRate}");
+                                System.Console.WriteLine($"  Temp: {d.Temperature}°C");
+                                System.Console.WriteLine($"  Good: {d.GoodCount}, Bad: {d.BadCount}");
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Console.WriteLine($"[Print] Błąd wypisywania urządzenia '{d.Name}': {ex.Message}");
+                            }
                         }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Console.WriteLine($"[OPC] Nie udało się pobrać urządzeń: {ex.Message}");
                     }
                     break;
 
                 case 5:
+                    try
                     {
-                        var devices = opcUaManager.GetDevices();
-                        foreach (var device in devices)
+                        var devicesToSend = opcUaManager?.GetDevices() ?? new List<Lib.OpcUaDevice>();
+                        foreach (var device in devicesToSend)
                         {
                             if (!string.IsNullOrEmpty(device.WorkorderId))
                             {
@@ -96,6 +106,10 @@ namespace ServiceSdkDemo.Console
                                 System.Console.WriteLine($"Sent message to {device.Name}");
                             }
                         }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Console.WriteLine($"[OPC->IoT] Błąd podczas wysyłki: {ex.Message}");
                     }
                     break;
 
