@@ -1,6 +1,7 @@
 ﻿using Microsoft.Azure.Devices;
 using Newtonsoft.Json;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace ServiceSdkDemo.Lib
 {
