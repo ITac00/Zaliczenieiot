@@ -23,55 +23,44 @@ namespace ServiceSdkDemo.Lib
             _client.Disconnect();
         }
 
-        private void ReconnectIfNeeded()
-        {
-            try
-            {
-                _client.ReadNode("ns=0;i=2253"); // "Server" node – zawsze istnieje
-            }
-            catch
-            {
-                try
-                {
-                    System.Console.WriteLine("[OPC] Utracono połączenie. Próba ponownego połączenia...");
-                    _client.Connect();
-                    System.Console.WriteLine("[OPC] Ponownie połączono z serwerem OPC UA.");
-                }
-                catch (Exception ex)
-                {
-                    throw new Exception($"[OPC] Nie można się połączyć z serwerem OPC UA: {ex.Message}");
-                }
-            }
-        }
-
 
         public List<OpcUaDevice> GetDevices()
         {
             try
             {
-                ReconnectIfNeeded();
+                // Wymuszone ponowne połączenie — testowa forma
+                _client.Disconnect();
+                _client.Connect();
+                System.Console.WriteLine("[OPC] Ponowne połączenie wykonane przed odczytem urządzeń.");
 
-                var deviceNodes = _client.BrowseNode(OpcObjectTypes.ObjectsFolder)
-                    .Children()
+                List<OpcNodeInfo> deviceNodes;
+                try
+                {
+                    deviceNodes = _client.BrowseNode(OpcObjectTypes.ObjectsFolder).Children().ToList();
+                }
+                catch (Exception ex)
+                {
+                    System.Console.WriteLine($"[OPC] Błąd przeglądania przestrzeni nazw: {ex.Message}");
+                    return new List<OpcUaDevice>();
+                }
+
+                // Filtrujemy urządzenia na podstawie namespace i prefiksu identyfikatora
+                deviceNodes = deviceNodes
                     .Where(n => n.NodeId.NamespaceIndex == 2 && n.NodeId.ToString().StartsWith("ns=2;s=Device"))
                     .ToList();
 
-                var currentNames = new HashSet<string>(
-                    deviceNodes.Select(n => n.DisplayName.ToString())
-                );
+                // Wyczyść wszystkie urządzenia i odczytaj od nowa
+                _devices.Clear();
 
                 foreach (var node in deviceNodes)
                 {
-                    var name = node.DisplayName.ToString();
+                    var name = node.DisplayName.Value; // .Value zamiast .ToString()
 
                     try
                     {
-                        if (!_devices.ContainsKey(name))
-                        {
-                            _devices[name] = new OpcUaDevice(name, node.NodeId, _client);
-                        }
-
-                        _devices[name].Update();
+                        var device = new OpcUaDevice(name, node.NodeId, _client);
+                        device.Update();
+                        _devices[name] = device;
                     }
                     catch (Exception ex)
                     {
@@ -79,21 +68,15 @@ namespace ServiceSdkDemo.Lib
                     }
                 }
 
-                // Usuń nieistniejące
-                var removed = _devices.Keys.Except(currentNames).ToList();
-                foreach (var name in removed)
-                {
-                    _devices.Remove(name);
-                }
-
                 return _devices.Values.ToList();
             }
             catch (Exception ex)
             {
-                System.Console.WriteLine($"[OPC] Błąd przy przeglądaniu urządzeń: {ex.Message}");
+                System.Console.WriteLine($"[OPC] Błąd przy pobieraniu urządzeń: {ex.Message}");
                 return new List<OpcUaDevice>();
             }
         }
+
 
 
 
