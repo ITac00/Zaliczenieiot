@@ -10,107 +10,82 @@ namespace ServiceSdkDemo.Lib
     public class OpcUaManager : IDisposable
     {
         private readonly OpcClient _client;
+        private readonly string _endpointUrl;
+        private bool _isConnected = false;
         private readonly Dictionary<string, OpcUaDevice> _devices = new();
 
         public OpcUaManager(string endpointUrl)
         {
+            _endpointUrl = endpointUrl;
             _client = new OpcClient(endpointUrl);
-            _client.Connect();
         }
 
         public void Dispose()
         {
-            _client.Disconnect();
-        }
-
-        private void ReconnectIfNeeded()
-        {
-            try
+            if (_isConnected)
             {
-                _client.ReadNode("ns=0;i=2253"); // "Server" node – zawsze istnieje
-            }
-            catch
-            {
-                try
-                {
-                    System.Console.WriteLine("[OPC] Utracono połączenie. Próba ponownego połączenia...");
-                    _client.Connect();
-                    System.Console.WriteLine("[OPC] Ponownie połączono z serwerem OPC UA.");
-                }
-                catch (Exception ex)
-                {
-                    throw new Exception($"[OPC] Nie można się połączyć z serwerem OPC UA: {ex.Message}");
-                }
+                _client.Disconnect();
+                _isConnected = false;
             }
         }
-
 
         public List<OpcUaDevice> GetDevices()
         {
             try
             {
-                ReconnectIfNeeded();
+                if (_isConnected)
+                {
+                    _client.Disconnect();
+                    _isConnected = false;
+                }
 
-                var deviceNodes = _client.BrowseNode(OpcObjectTypes.ObjectsFolder)
+                _client.Connect();
+                _isConnected = true;
+
+                var deviceNodes = _client
+                    .BrowseNode(OpcObjectTypes.ObjectsFolder)
                     .Children()
                     .Where(n => n.NodeId.NamespaceIndex == 2 && n.NodeId.ToString().StartsWith("ns=2;s=Device"))
                     .ToList();
 
-                var currentNames = new HashSet<string>(
-                    deviceNodes.Select(n => n.DisplayName.ToString())
-                );
-
+                _devices.Clear();
                 foreach (var node in deviceNodes)
                 {
-                    var name = node.DisplayName.ToString();
-
+                    var name = node.DisplayName.Value;
                     try
                     {
-                        if (!_devices.ContainsKey(name))
-                        {
-                            _devices[name] = new OpcUaDevice(name, node.NodeId, _client);
-                        }
-
-                        _devices[name].Update();
+                        var device = new OpcUaDevice(name, node.NodeId, _client);
+                        device.Update();
+                        _devices[name] = device;
                     }
                     catch (Exception ex)
                     {
-                        System.Console.WriteLine($"[OPC] Błąd podczas aktualizacji urządzenia '{name}': {ex.Message}");
+                        Console.WriteLine($"[OPC] Błąd podczas aktualizacji urządzenia '{name}': {ex.Message}");
                     }
-                }
-
-                // Usuń nieistniejące
-                var removed = _devices.Keys.Except(currentNames).ToList();
-                foreach (var name in removed)
-                {
-                    _devices.Remove(name);
                 }
 
                 return _devices.Values.ToList();
             }
             catch (Exception ex)
             {
-                System.Console.WriteLine($"[OPC] Błąd przy przeglądaniu urządzeń: {ex.Message}");
+                Console.WriteLine($"[OPC] Błąd podczas pobierania urządzeń: {ex.Message}");
                 return new List<OpcUaDevice>();
             }
         }
-
-
-
     }
 
     public class OpcUaDevice
     {
         public string Name { get; }
         public string? WorkorderId { get; private set; }
-        public string ProductionStatus { get; private set; } = "";
+        public string ProductionStatus { get; private set; } = string.Empty;
         public int ProductionRate { get; private set; }
         public int GoodCount { get; private set; }
         public int BadCount { get; private set; }
         public float Temperature { get; private set; }
 
-        private readonly OpcNodeId _baseNode;
         private readonly OpcClient _client;
+        private readonly OpcNodeId _baseNode;
 
         public OpcUaDevice(string name, OpcNodeId baseNode, OpcClient client)
         {
@@ -133,7 +108,6 @@ namespace ServiceSdkDemo.Lib
         {
             try
             {
-                // Tworzymy pełny NodeId jako string w znanym formacie
                 var nodeId = new OpcNodeId($"{Name}/{subPath}", 2);
                 var value = _client.ReadNode(nodeId).Value;
                 return (T)Convert.ChangeType(value!, typeof(T));
