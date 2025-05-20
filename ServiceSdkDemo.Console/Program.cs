@@ -31,13 +31,16 @@ namespace ServiceSdkDemo.SystemConsole
             }
 
             int input;
-            do
+            while (true)
             {
                 FeatureSelector.PrintMenu();
                 input = FeatureSelector.ReadInput();
+                if (input == 0)
+                    break;
+
                 await FeatureSelector.Execute(input, manager, opcManager);
             }
-            while (input != 0);
+
         }
     }
 }
