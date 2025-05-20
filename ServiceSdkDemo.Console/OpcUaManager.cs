@@ -117,5 +117,35 @@ namespace ServiceSdkDemo.Lib
                 return default!;
             }
         }
+        public bool SetProductionRate(int rate)
+        {
+            if (rate < 0 || rate > 100 || rate % 10 != 0)
+                return false;
+
+            try
+            {
+                var nodeId = new OpcNodeId($"{Name}/ProductionRate", 2);
+                _client.WriteNode(nodeId, rate);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public bool SetEmergencyStop(bool status)
+        {
+            try
+            {
+                var nodeId = new OpcNodeId($"{Name}/EmergencyStop", 2);
+                _client.WriteNode(nodeId, status);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
     }
 }

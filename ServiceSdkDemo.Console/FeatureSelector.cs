@@ -25,7 +25,7 @@ namespace ServiceSdkDemo.SystemConsole
                     break;
 
                 case 2:
-                    await TryExecuteAsync(() => ShowSelectedDevice(opcUaManager));
+                    await TryExecuteAsync(() => ShowSelectedDeviceMenu(opcUaManager));
                     break;
 
                 default:
@@ -68,13 +68,13 @@ namespace ServiceSdkDemo.SystemConsole
             return Task.CompletedTask;
         }
 
-        private static Task ShowSelectedDevice(OpcUaManager opcUaManager)
+        private static async Task ShowSelectedDeviceMenu(OpcUaManager opcUaManager)
         {
             var devices = opcUaManager?.GetDevices() ?? new List<OpcUaDevice>();
             if (devices.Count == 0)
             {
                 Console.WriteLine("Brak urządzeń lub błąd połączenia.");
-                return Task.CompletedTask;
+                return;
             }
 
             Console.WriteLine("\n\nWybierz urządzenie:");
@@ -84,19 +84,69 @@ namespace ServiceSdkDemo.SystemConsole
             }
 
             Console.Write("Twój wybór: ");
-            var key = Console.ReadKey(intercept: true);
-            Console.WriteLine();
+            var input = Console.ReadLine();
 
-            if (!int.TryParse(key.KeyChar.ToString(), out int selectedIndex) ||
+            if (!int.TryParse(input, out int selectedIndex) ||
                 selectedIndex < 1 || selectedIndex > devices.Count)
             {
                 Console.WriteLine("Nieprawidłowy wybór.");
-                return Task.CompletedTask;
+                return;
             }
 
             var selectedDevice = devices[selectedIndex - 1];
-            PrintDevice(selectedDevice);
-            return Task.CompletedTask;
+            await DeviceActionMenu(selectedDevice);
+        }
+
+        private static Task DeviceActionMenu(OpcUaDevice device)
+        {
+            while (true)
+            {
+                Console.WriteLine($"\nUrządzenie: {device.Name}");
+                Console.WriteLine("1 - Pokaż dane");
+                Console.WriteLine("2 - Zmień Production Rate");
+                Console.WriteLine("3 - Emergency Stop");
+                Console.WriteLine("4 - Reset Error Status");
+                Console.WriteLine("0 - Powrót");
+                Console.Write("Wybierz opcję: ");
+
+                var input = Console.ReadLine();
+                switch (input)
+                {
+                    case "1":
+                        device.Update();
+                        PrintDevice(device);
+                        break;
+                    case "2":
+                        Console.Write("Podaj nowy Production Rate (0-100, co 10): ");
+                        var rateStr = Console.ReadLine();
+                        if (int.TryParse(rateStr, out int rate) && device.SetProductionRate(rate))
+                        {
+                            Console.WriteLine("Production Rate zaktualizowany.");
+                        }
+                        else
+                        {
+                            Console.WriteLine("Nieprawidłowa wartość lub błąd zapisu.");
+                        }
+                        break;
+                    case "3":
+                        if (device.SetEmergencyStop(true))
+                            Console.WriteLine("Emergency Stop aktywowany.");
+                        else
+                            Console.WriteLine("Błąd podczas aktywacji Emergency Stop.");
+                        break;
+                    case "4":
+                        if (device.SetEmergencyStop(false))
+                            Console.WriteLine("Status błędu zresetowany.");
+                        else
+                            Console.WriteLine("Błąd podczas resetowania błędu.");
+                        break;
+                    case "0":
+                        return Task.CompletedTask;
+                    default:
+                        Console.WriteLine("Nieprawidłowy wybór.");
+                        break;
+                }
+            }
         }
 
 
