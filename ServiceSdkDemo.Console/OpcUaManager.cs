@@ -117,6 +117,7 @@ namespace ServiceSdkDemo.Lib
                 return default!;
             }
         }
+
         public bool SetProductionRate(int rate)
         {
             if (rate < 0 || rate > 100 || rate % 10 != 0)
@@ -138,12 +139,15 @@ namespace ServiceSdkDemo.Lib
         {
             try
             {
-                var nodeId = new OpcNodeId($"{Name}/EmergencyStop", 2);
-                _client.WriteNode(nodeId, status);
+                var methodName = status ? "EmergencyStop" : "ResetErrorStatus";
+                var methodId = new OpcNodeId($"{Name}/{methodName}", 2);
+                // Wywołaj metodę na serwerze OPC UA
+                _client.CallMethod(_baseNode, methodId);
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine($"[OPC] Błąd wywołania metody '{(status ? "EmergencyStop" : "ResetErrorStatus")}' dla urządzenia '{Name}': {ex.Message}");
                 return false;
             }
         }
