@@ -8,12 +8,14 @@ namespace ServiceSdkDemo.SystemConsole
 {
     internal static class FeatureSelector
     {
+        private static DeviceSimulator? _simulator;
         public static void PrintMenu()
         {
             Console.WriteLine(@"
     1 - Pokaż wszystkie urządzenia
     2 - Pokaż konkretny twin
     3 - Interpretacja flag błędów
+    4 - D2C: Start/Stop telemetry
     0 - Wyjście");
         }
 
@@ -32,10 +34,41 @@ namespace ServiceSdkDemo.SystemConsole
                 case 3:
                     await TryExecuteAsync(PrintErrorFlagInterpretation);
                     break;
+                case 4:
+                    await TryExecuteAsync(() => D2CMenuAsync(opcUaManager));
+                    break;
 
                 default:
                     break;
             }
+        }
+
+        private static Task D2CMenuAsync(OpcUaManager opcUaManager)
+        {
+            const string deviceConnectionString = "wstaw_tutaj_primary_connection_string_z_device_identity"; // <- WSTAW
+
+            if (_simulator == null)
+                _simulator = new DeviceSimulator(deviceConnectionString, opcUaManager);
+
+            Console.WriteLine("\n1 - Start telemetry");
+            Console.WriteLine("2 - Stop telemetry");
+            Console.Write("Wybór: ");
+            var input = Console.ReadLine()?.Trim();
+
+            switch (input)
+            {
+                case "1":
+                    _simulator.Start();
+                    break;
+                case "2":
+                    _simulator.Stop();
+                    break;
+                default:
+                    Console.WriteLine("Nieznana opcja.");
+                    break;
+            }
+
+            return Task.CompletedTask;
         }
 
         private static async Task TryExecuteAsync(Func<Task> action)
