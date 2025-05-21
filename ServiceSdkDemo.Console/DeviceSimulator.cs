@@ -104,14 +104,32 @@ namespace ServiceSdkDemo.Lib
         {
             try
             {
+                if (!File.Exists(_connectionStringPath))
+                {
+                    Console.WriteLine("[D2C] Nie znaleziono pliku z device connection stringiem.");
+                    Console.Write("Wprowadź connection string urządzenia: ");
+                    var userInput = Console.ReadLine()?.Trim();
+
+                    if (string.IsNullOrEmpty(userInput))
+                    {
+                        Console.WriteLine("[D2C] Nie podano connection stringa. Przerwano.");
+                        return string.Empty;
+                    }
+
+                    File.WriteAllText(_connectionStringPath, userInput);
+                    Console.WriteLine("[D2C] Zapisano connection string do pliku.");
+                    return userInput;
+                }
+
                 return File.ReadAllText(_connectionStringPath).Trim();
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[D2C] Błąd wczytywania pliku device_connection.txt: {ex.Message}");
+                Console.WriteLine($"[D2C] Błąd przy wczytywaniu lub zapisie connection stringa: {ex.Message}");
                 return string.Empty;
             }
         }
+
     }
 }
 

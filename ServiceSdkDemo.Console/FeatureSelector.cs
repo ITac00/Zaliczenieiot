@@ -16,6 +16,7 @@ namespace ServiceSdkDemo.SystemConsole
     2 - Pokaż konkretny twin
     3 - Interpretacja flag błędów
     4 - D2C: Start/Stop telemetry
+    5 - Utwórz / edytuj pliki konfiguracyjne
     0 - Wyjście");
         }
 
@@ -34,14 +35,84 @@ namespace ServiceSdkDemo.SystemConsole
                 case 3:
                     await TryExecuteAsync(PrintErrorFlagInterpretation);
                     break;
+
                 case 4:
                     await TryExecuteAsync(() => D2CMenuAsync(opcUaManager));
+                    break;
+
+                case 5:
+                    await TryExecuteAsync(ConfigFilesMenuAsync);
                     break;
 
                 default:
                     break;
             }
         }
+
+        private static Task ConfigFilesMenuAsync()
+        {
+            while (true)
+            {
+                Console.WriteLine("\nMenu konfiguracji plików:");
+                Console.WriteLine("1 - Utwórz/edytuj iot_connection.txt");
+                Console.WriteLine("2 - Utwórz/edytuj opcua_url.txt");
+                Console.WriteLine("3 - Utwórz/edytuj device_connection.txt");
+                Console.WriteLine("0 - Wyjście bez edycji");
+                Console.Write("Wybierz opcję: ");
+
+                var input = Console.ReadLine()?.Trim();
+
+                string fileName;
+                string prompt;
+
+                switch (input)
+                {
+                    case "1":
+                        fileName = "iot_connection.txt";
+                        prompt = "Wpisz connection string do IoT Hub:";
+                        break;
+                    case "2":
+                        fileName = "opcua_url.txt";
+                        prompt = "Wpisz URL serwera OPC UA:";
+                        break;
+                    case "3":
+                        fileName = "device_connection.txt";
+                        prompt = "Wpisz connection string urządzenia:";
+                        break;
+                    case "0":
+                        Console.WriteLine("Wyjście z menu konfiguracji.");
+                        return Task.CompletedTask;
+                    default:
+                        Console.WriteLine("Nieznana opcja, spróbuj ponownie.");
+                        continue;
+                }
+
+                Console.WriteLine(prompt);
+                var content = Console.ReadLine()?.Trim();
+
+                if (string.IsNullOrEmpty(content))
+                {
+                    Console.WriteLine("Nie wprowadzono żadnej wartości, plik nie zostanie zmieniony.");
+                }
+                else
+                {
+                    try
+                    {
+                        System.IO.File.WriteAllText(fileName, content);
+                        Console.WriteLine($"Zapisano do pliku {fileName}.");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Błąd zapisu pliku {fileName}: {ex.Message}");
+                    }
+                }
+
+                // Po zapisaniu wracamy do menu lub kończymy - tu możesz zdecydować:
+                // Ja proponuję zakończyć po jednej edycji, więc:
+                return Task.CompletedTask;
+            }
+        }
+
 
         private static Task D2CMenuAsync(OpcUaManager opcUaManager)
         {
