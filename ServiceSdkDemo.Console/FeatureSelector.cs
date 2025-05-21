@@ -53,6 +53,12 @@ namespace ServiceSdkDemo.SystemConsole
 
         private static Task ShowAllDevices(OpcUaManager opcUaManager)
         {
+            if (!opcUaManager.EnsureConnected())
+            {
+                Console.WriteLine("[!] Nie udało się połączyć z serwerem OPC UA.");
+                return Task.CompletedTask;
+            }
+
             var devices = opcUaManager?.GetDevices() ?? new List<OpcUaDevice>();
             if (devices.Count == 0)
             {
@@ -70,6 +76,11 @@ namespace ServiceSdkDemo.SystemConsole
 
         private static async Task ShowSelectedDeviceMenu(OpcUaManager opcUaManager)
         {
+            if (!opcUaManager.EnsureConnected())
+            {
+                Console.WriteLine("[!] Nie udało się połączyć z serwerem OPC UA.");
+                return;
+            }
             var devices = opcUaManager?.GetDevices() ?? new List<OpcUaDevice>();
             if (devices.Count == 0)
             {
@@ -113,41 +124,82 @@ namespace ServiceSdkDemo.SystemConsole
                 switch (input)
                 {
                     case "1":
-                        device.Update();
-                        PrintDevice(device);
+                        try
+                        {
+                            device.Update();
+                            PrintDevice(device);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[!] Nie udało się pobrać danych urządzenia: {ex.Message}");
+                            return Task.CompletedTask;
+                        }
                         break;
+
                     case "2":
                         Console.Write("Podaj nowy Production Rate (0-100, co 10): ");
                         var rateStr = Console.ReadLine();
-                        if (int.TryParse(rateStr, out int rate) && device.SetProductionRate(rate))
+                        if (int.TryParse(rateStr, out int rate))
                         {
-                            Console.WriteLine("Production Rate zaktualizowany.");
+                            try
+                            {
+                                if (device.SetProductionRate(rate))
+                                    Console.WriteLine("Production Rate zaktualizowany.");
+                                else
+                                    Console.WriteLine("Nieprawidłowa wartość lub błąd zapisu.");
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"[!] Błąd podczas ustawiania Production Rate: {ex.Message}");
+                                return Task.CompletedTask;
+                            }
                         }
                         else
                         {
-                            Console.WriteLine("Nieprawidłowa wartość lub błąd zapisu.");
+                            Console.WriteLine("Nieprawidłowa wartość.");
                         }
                         break;
+
                     case "3":
-                        if (device.SetEmergencyStop(true))
-                            Console.WriteLine("Emergency Stop aktywowany.");
-                        else
-                            Console.WriteLine("Błąd podczas aktywacji Emergency Stop.");
+                        try
+                        {
+                            if (device.SetEmergencyStop(true))
+                                Console.WriteLine("Emergency Stop aktywowany.");
+                            else
+                                Console.WriteLine("Błąd podczas aktywacji Emergency Stop.");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[!] Wyjątek przy Emergency Stop: {ex.Message}");
+                            return Task.CompletedTask;
+                        }
                         break;
+
                     case "4":
-                        if (device.SetEmergencyStop(false))
-                            Console.WriteLine("Status błędu zresetowany.");
-                        else
-                            Console.WriteLine("Błąd podczas resetowania błędu.");
+                        try
+                        {
+                            if (device.SetEmergencyStop(false))
+                                Console.WriteLine("Status błędu zresetowany.");
+                            else
+                                Console.WriteLine("Błąd podczas resetowania błędu.");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[!] Wyjątek przy resetowaniu błędu: {ex.Message}");
+                            return Task.CompletedTask;
+                        }
                         break;
+
                     case "0":
                         return Task.CompletedTask;
+
                     default:
                         Console.WriteLine("Nieprawidłowy wybór.");
                         break;
                 }
             }
         }
+
 
 
         private static void PrintDevice(OpcUaDevice d)

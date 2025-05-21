@@ -28,6 +28,26 @@ namespace ServiceSdkDemo.Lib
                 _isConnected = false;
             }
         }
+        public bool EnsureConnected()
+        {
+            try
+            {
+                if (!_isConnected)
+                {
+                    _client.Connect();
+                    _isConnected = true;
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[OPC] Nie udało się połączyć: {ex.Message}");
+                _isConnected = false;
+                return false;
+            }
+        }
+
 
         public List<OpcUaDevice> GetDevices()
         {
