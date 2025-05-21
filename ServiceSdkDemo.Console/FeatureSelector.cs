@@ -12,7 +12,8 @@ namespace ServiceSdkDemo.SystemConsole
         {
             Console.WriteLine(@"
     1 - Pokaż wszystkie urządzenia OPC UA
-    2 - Pokaż stan wybranego urządzenia
+    2 - Pokaż menu wybranego urządzenia
+    3 - Interpretacja flag błędów
     0 - Wyjście");
         }
 
@@ -26,6 +27,10 @@ namespace ServiceSdkDemo.SystemConsole
 
                 case 2:
                     await TryExecuteAsync(() => ShowSelectedDeviceMenu(opcUaManager));
+                    break;
+
+                case 3:
+                    await TryExecuteAsync(PrintErrorFlagInterpretation);
                     break;
 
                 default:
@@ -233,17 +238,32 @@ namespace ServiceSdkDemo.SystemConsole
         {
             try
             {
+                d.Update();
+
                 Console.WriteLine($"\nUrządzenie: {d.Name}");
                 Console.WriteLine($"  Status: {d.ProductionStatus}");
                 Console.WriteLine($"  Workorder ID: {d.WorkorderId}");
                 Console.WriteLine($"  Rate: {d.ProductionRate}");
                 Console.WriteLine($"  Temp: {d.Temperature}°C");
                 Console.WriteLine($"  Good: {d.GoodCount}, Bad: {d.BadCount}");
+                Console.WriteLine($"  Device Errors: {d.DeviceErrors} (binary: {Convert.ToString(d.DeviceErrors, 2).PadLeft(4, '0')})");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[Print] Błąd wypisywania urządzenia '{d.Name}': {ex.Message}");
             }
+        }
+
+        private static Task PrintErrorFlagInterpretation()
+        {
+            Console.WriteLine("\nInterpretacja flag błędów:");
+            Console.WriteLine("0000 - Brak błędów");
+            Console.WriteLine("0001 - Emergency Stop");
+            Console.WriteLine("0010 - Power Failure");
+            Console.WriteLine("0100 - Sensor Failure");
+            Console.WriteLine("1000 - Unknown Error");
+            Console.WriteLine("\nKombinacje flag wskazują na jednoczesne wystąpienie kilku błędów.");
+            return Task.CompletedTask;
         }
 
         internal static int ReadInput()
