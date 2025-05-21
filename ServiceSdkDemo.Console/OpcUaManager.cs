@@ -103,6 +103,7 @@ namespace ServiceSdkDemo.Lib
         public int GoodCount { get; private set; }
         public int BadCount { get; private set; }
         public float Temperature { get; private set; }
+        public int DeviceErrors { get; private set; }
 
         private readonly OpcClient _client;
         private readonly OpcNodeId _baseNode;
@@ -122,6 +123,7 @@ namespace ServiceSdkDemo.Lib
             GoodCount = ReadSafe<int>("GoodCount");
             BadCount = ReadSafe<int>("BadCount");
             Temperature = ReadSafe<float>("Temperature");
+            DeviceErrors = ReadSafe<int>("DeviceError");
         }
 
         private T ReadSafe<T>(string subPath)
