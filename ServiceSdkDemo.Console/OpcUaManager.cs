@@ -28,6 +28,26 @@ namespace ServiceSdkDemo.Lib
                 _isConnected = false;
             }
         }
+        public bool EnsureConnected()
+        {
+            try
+            {
+                if (!_isConnected)
+                {
+                    _client.Connect();
+                    _isConnected = true;
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[OPC] Nie udało się połączyć: {ex.Message}");
+                _isConnected = false;
+                return false;
+            }
+        }
+
 
         public List<OpcUaDevice> GetDevices()
         {
@@ -115,6 +135,47 @@ namespace ServiceSdkDemo.Lib
             catch
             {
                 return default!;
+            }
+        }
+
+        public bool SetProductionRate(int rate)
+        {
+            if (rate < 0 || rate > 100 || rate % 10 != 0)
+                return false;
+
+            try
+            {
+                var nodeId = new OpcNodeId($"{Name}/ProductionRate", 2);
+                _client.WriteNode(nodeId, rate);
+                return true;
+            }
+            catch (OpcException ex)
+            {
+                Console.WriteLine($"[OPC] Błąd podczas ustawiania ProductionRate: {ex.Message}");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[OPC] Niespodziewany błąd: {ex.Message}");
+                return false;
+            }
+        }
+
+
+
+        public bool SetEmergencyStop(bool status)
+        {
+            try
+            {
+                var methodName = status ? "EmergencyStop" : "ResetErrorStatus";
+                var methodId = new OpcNodeId($"{Name}/{methodName}", 2);
+                _client.CallMethod(_baseNode, methodId);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[OPC] Błąd wywołania metody '{(status ? "EmergencyStop" : "ResetErrorStatus")}' dla urządzenia '{Name}': {ex.Message}");
+                return false;
             }
         }
     }
