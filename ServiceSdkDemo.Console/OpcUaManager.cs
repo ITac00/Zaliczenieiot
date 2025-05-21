@@ -149,11 +149,19 @@ namespace ServiceSdkDemo.Lib
                 _client.WriteNode(nodeId, rate);
                 return true;
             }
-            catch
+            catch (OpcException ex)
             {
+                Console.WriteLine($"[OPC] Błąd podczas ustawiania ProductionRate: {ex.Message}");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[OPC] Niespodziewany błąd: {ex.Message}");
                 return false;
             }
         }
+
+
 
         public bool SetEmergencyStop(bool status)
         {
@@ -161,7 +169,6 @@ namespace ServiceSdkDemo.Lib
             {
                 var methodName = status ? "EmergencyStop" : "ResetErrorStatus";
                 var methodId = new OpcNodeId($"{Name}/{methodName}", 2);
-                // Wywołaj metodę na serwerze OPC UA
                 _client.CallMethod(_baseNode, methodId);
                 return true;
             }

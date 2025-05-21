@@ -59,7 +59,7 @@ namespace ServiceSdkDemo.SystemConsole
                 return Task.CompletedTask;
             }
 
-            var devices = opcUaManager?.GetDevices() ?? new List<OpcUaDevice>();
+            var devices = opcUaManager.GetDevices();
             if (devices.Count == 0)
             {
                 Console.WriteLine("Brak urządzeń lub błąd połączenia.");
@@ -81,7 +81,8 @@ namespace ServiceSdkDemo.SystemConsole
                 Console.WriteLine("[!] Nie udało się połączyć z serwerem OPC UA.");
                 return;
             }
-            var devices = opcUaManager?.GetDevices() ?? new List<OpcUaDevice>();
+
+            var devices = opcUaManager.GetDevices();
             if (devices.Count == 0)
             {
                 Console.WriteLine("Brak urządzeń lub błąd połączenia.");
@@ -97,18 +98,17 @@ namespace ServiceSdkDemo.SystemConsole
             Console.Write("Twój wybór: ");
             var input = Console.ReadLine();
 
-            if (!int.TryParse(input, out int selectedIndex) ||
-                selectedIndex < 1 || selectedIndex > devices.Count)
+            if (!int.TryParse(input, out int selectedIndex) || selectedIndex < 1 || selectedIndex > devices.Count)
             {
                 Console.WriteLine("Nieprawidłowy wybór.");
                 return;
             }
 
             var selectedDevice = devices[selectedIndex - 1];
-            await DeviceActionMenu(selectedDevice);
+            await DeviceActionMenuAsync(selectedDevice, opcUaManager);
         }
 
-        private static Task DeviceActionMenu(OpcUaDevice device)
+        private static Task DeviceActionMenuAsync(OpcUaDevice device, OpcUaManager opcUaManager)
         {
             while (true)
             {
@@ -121,6 +121,19 @@ namespace ServiceSdkDemo.SystemConsole
                 Console.Write("Wybierz opcję: ");
 
                 var input = Console.ReadLine();
+
+                if (!opcUaManager.EnsureConnected())
+                {
+                    Console.WriteLine("[!] Utracono połączenie z serwerem OPC UA.");
+                    break;
+                }
+                var currentDevices = opcUaManager.GetDevices();
+                if (!currentDevices.Any(d => d.Name == device.Name))
+                {
+                    Console.WriteLine($"[!] Urządzenie '{device.Name}' zostało usunięte lub niedostępne.");
+                    break;
+                }
+
                 switch (input)
                 {
                     case "1":
@@ -132,7 +145,7 @@ namespace ServiceSdkDemo.SystemConsole
                         catch (Exception ex)
                         {
                             Console.WriteLine($"[!] Nie udało się pobrać danych urządzenia: {ex.Message}");
-                            return Task.CompletedTask;
+                            break;
                         }
                         break;
 
@@ -141,12 +154,26 @@ namespace ServiceSdkDemo.SystemConsole
                         var rateStr = Console.ReadLine();
                         if (int.TryParse(rateStr, out int rate))
                         {
+                            if (!opcUaManager.EnsureConnected() || !opcUaManager.GetDevices().Any(d => d.Name == device.Name))
+                            {
+                                Console.WriteLine($"[!] Urządzenie '{device.Name}' zostało usunięte lub niedostępne.");
+                                return Task.CompletedTask;
+                            }
                             try
                             {
                                 if (device.SetProductionRate(rate))
+                                {
                                     Console.WriteLine("Production Rate zaktualizowany.");
+                                }
                                 else
+                                {
                                     Console.WriteLine("Nieprawidłowa wartość lub błąd zapisu.");
+                                }
+                            }
+                            catch (Opc.UaFx.OpcException ex)
+                            {
+                                Console.WriteLine($"[!] Urządzenie utracone lub niedostępne: {ex.Message}");
+                                return Task.CompletedTask;
                             }
                             catch (Exception ex)
                             {
@@ -160,6 +187,8 @@ namespace ServiceSdkDemo.SystemConsole
                         }
                         break;
 
+
+
                     case "3":
                         try
                         {
@@ -171,7 +200,6 @@ namespace ServiceSdkDemo.SystemConsole
                         catch (Exception ex)
                         {
                             Console.WriteLine($"[!] Wyjątek przy Emergency Stop: {ex.Message}");
-                            return Task.CompletedTask;
                         }
                         break;
 
@@ -186,7 +214,6 @@ namespace ServiceSdkDemo.SystemConsole
                         catch (Exception ex)
                         {
                             Console.WriteLine($"[!] Wyjątek przy resetowaniu błędu: {ex.Message}");
-                            return Task.CompletedTask;
                         }
                         break;
 
@@ -198,9 +225,9 @@ namespace ServiceSdkDemo.SystemConsole
                         break;
                 }
             }
+
+            return Task.CompletedTask;
         }
-
-
 
         private static void PrintDevice(OpcUaDevice d)
         {
