@@ -11,8 +11,8 @@ namespace ServiceSdkDemo.SystemConsole
         public static void PrintMenu()
         {
             Console.WriteLine(@"
-    1 - Pokaż wszystkie urządzenia OPC UA
-    2 - Pokaż menu wybranego urządzenia
+    1 - Pokaż wszystkie urządzenia
+    2 - Pokaż konkretny twin
     3 - Interpretacja flag błędów
     0 - Wyjście");
         }
@@ -97,7 +97,7 @@ namespace ServiceSdkDemo.SystemConsole
             Console.WriteLine("\n\nWybierz urządzenie:");
             for (int i = 0; i < devices.Count; i++)
             {
-                Console.WriteLine($"{i + 1} - {devices[i].Name}");
+                Console.WriteLine($"{i + 1} - Reported {devices[i].Name} Twin");
             }
 
             Console.Write("Twój wybór: ");
@@ -119,7 +119,7 @@ namespace ServiceSdkDemo.SystemConsole
             {
                 Console.WriteLine($"\nUrządzenie: {device.Name}");
                 Console.WriteLine("1 - Pokaż dane");
-                Console.WriteLine("2 - Zmień Production Rate");
+                Console.WriteLine("2 - Desired Production Rate");
                 Console.WriteLine("3 - Emergency Stop");
                 Console.WriteLine("4 - Reset Error Status");
                 Console.WriteLine("0 - Powrót");
