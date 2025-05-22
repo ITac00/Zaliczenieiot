@@ -3,6 +3,10 @@ using Newtonsoft.Json;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.IO;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ServiceSdkDemo.Lib
 {
@@ -14,7 +18,9 @@ namespace ServiceSdkDemo.Lib
         private CancellationTokenSource? _cts;
         private Task? _sendTask;
 
-        public DeviceSimulator(string dummy, OpcUaManager opcManager) // "dummy" ignorowany, zostaje dla kompatybilności
+        private readonly Dictionary<string, int> _lastErrorState = new();
+
+        public DeviceSimulator(string dummy, OpcUaManager opcManager) // "dummy" ignorowany
         {
             _opcManager = opcManager;
         }
@@ -64,12 +70,23 @@ namespace ServiceSdkDemo.Lib
                 }
 
                 var devices = _opcManager.GetDevices();
+                var currentDeviceNames = new HashSet<string>(devices.Select(d => d.Name));
+
+                // Usuń z mapy urządzenia, które zniknęły
+                var removed = _lastErrorState.Keys.Except(currentDeviceNames).ToList();
+                foreach (var name in removed)
+                {
+                    _lastErrorState.Remove(name);
+                    Console.WriteLine($"[D2C] Usunięto z mapy stanów: {name}");
+                }
+
                 foreach (var device in devices)
                 {
                     try
                     {
                         device.Update();
 
+                        // Wysyłanie standardowej telemetrii
                         var telemetry = new
                         {
                             DeviceName = device.Name,
@@ -80,15 +97,30 @@ namespace ServiceSdkDemo.Lib
                             device.Temperature
                         };
 
-                        var json = JsonConvert.SerializeObject(telemetry);
-                        var message = new Message(Encoding.UTF8.GetBytes(json))
-                        {
-                            ContentType = "application/json",
-                            ContentEncoding = "utf-8"
-                        };
-
-                        await _client!.SendEventAsync(message, token);
+                        await SendMessageAsync(telemetry, token);
                         Console.WriteLine($"[D2C] Wysłano dane dla: {device.Name}");
+
+                        // Obsługa błędów
+                        var currentErrors = device.DeviceErrors;
+
+                        if (!_lastErrorState.ContainsKey(device.Name))
+                        {
+                            _lastErrorState[device.Name] = 0; // Domyślnie zakładamy 0 jako stan początkowy
+                            Console.WriteLine($"[D2C] Zarejestrowano nowe urządzenie: {device.Name}");
+                        }
+
+                        if (_lastErrorState[device.Name] != currentErrors)
+                        {
+                            var errorPayload = new
+                            {
+                                DeviceName = device.Name,
+                                DeviceErrors = currentErrors
+                            };
+
+                            await SendMessageAsync(errorPayload, token);
+                            Console.WriteLine($"[D2C] [ZMIANA BŁĘDU] {device.Name}: {Convert.ToString(_lastErrorState[device.Name], 2).PadLeft(4, '0')} → {Convert.ToString(currentErrors, 2).PadLeft(4, '0')}");
+                            _lastErrorState[device.Name] = currentErrors;
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -96,8 +128,20 @@ namespace ServiceSdkDemo.Lib
                     }
                 }
 
-                await Task.Delay(5000, token); // co 5 sek.
+                await Task.Delay(5000, token);
             }
+        }
+
+        private async Task SendMessageAsync(object payload, CancellationToken token)
+        {
+            var json = JsonConvert.SerializeObject(payload);
+            var message = new Message(Encoding.UTF8.GetBytes(json))
+            {
+                ContentType = "application/json",
+                ContentEncoding = "utf-8"
+            };
+
+            await _client!.SendEventAsync(message, token);
         }
 
         private string LoadConnectionString()
@@ -129,7 +173,5 @@ namespace ServiceSdkDemo.Lib
                 return string.Empty;
             }
         }
-
     }
 }
-
