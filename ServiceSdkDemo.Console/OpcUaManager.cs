@@ -122,6 +122,30 @@ namespace ServiceSdkDemo.Lib
 
             return device.SetEmergencyStop(false);
         }
+
+        public bool DecreaseProductionRate(string deviceName)
+        {
+            if (!_devices.TryGetValue(deviceName, out var device))
+            {
+                GetDevices(); // Odśwież listę urządzeń, gdy nie odnaleziono
+                if (!_devices.TryGetValue(deviceName, out device))
+                {
+                    Console.WriteLine($"[OPC] Nie znaleziono urządzenia '{deviceName}' dla DecreaseProductionRate.");
+                    return false;
+                }
+            }
+
+            // Aktualizujemy dane urządzenia, aby pobrać bieżący ProductionRate
+            device.Update();
+            int currentRate = device.ProductionRate;
+            int newRate = currentRate - 10;
+            if (newRate < 0)
+            {
+                newRate = 0;
+            }
+            return device.SetProductionRate(newRate);
+        }
+
     }
 
     public class OpcUaDevice
@@ -208,5 +232,7 @@ namespace ServiceSdkDemo.Lib
                 return false;
             }
         }
+
+
     }
 }

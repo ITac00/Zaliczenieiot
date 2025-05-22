@@ -245,6 +245,10 @@ namespace ServiceSdkDemo.Lib
                         result = _opcManager.ResetErrorStatus(command.Device);
                         break;
 
+                    case "DecreaseProductionRate":
+                        result = _opcManager.DecreaseProductionRate(command.Device);
+                        break;
+
                     default:
                         return await CreateResponseAsync(404, $"Unknown command: {command.Command}");
                 }
@@ -260,6 +264,7 @@ namespace ServiceSdkDemo.Lib
                 return await CreateResponseAsync(500, "Internal server error.");
             }
         }
+
 
         private Task<MethodResponse> CreateResponseAsync(int status, string message)
         {
