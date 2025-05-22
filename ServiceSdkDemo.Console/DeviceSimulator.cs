@@ -21,7 +21,7 @@ namespace ServiceSdkDemo.Lib
 
         private readonly Dictionary<string, int> _lastErrorState = new();
 
-        public DeviceSimulator(string dummy, OpcUaManager opcManager) // "dummy" ignorowany
+        public DeviceSimulator(string dummy, OpcUaManager opcManager) 
         {
             _opcManager = opcManager;
         }
@@ -43,6 +43,10 @@ namespace ServiceSdkDemo.Lib
             }
 
             _client = DeviceClient.CreateFromConnectionString(connectionString, TransportType.Mqtt);
+
+            // Rejestracja obsługi metody bezpośredniej ControlDevice
+            _client.SetMethodHandlerAsync("ControlDevice", ControlDeviceHandler, null).Wait();
+
             _cts = new CancellationTokenSource();
 
             _sendTelemetryTask = Task.Run(() => SendTelemetryLoop(_cts.Token));
@@ -173,7 +177,6 @@ namespace ServiceSdkDemo.Lib
             }
         }
 
-
         private async Task SendMessageAsync(object payload, CancellationToken token)
         {
             var json = JsonConvert.SerializeObject(payload);
@@ -214,6 +217,62 @@ namespace ServiceSdkDemo.Lib
                 Console.WriteLine($"[D2C] Błąd przy wczytywaniu lub zapisie connection stringa: {ex.Message}");
                 return string.Empty;
             }
+        }
+
+
+        private async Task<MethodResponse> ControlDeviceHandler(MethodRequest methodRequest, object userContext)
+        {
+            try
+            {
+                var json = Encoding.UTF8.GetString(methodRequest.Data);
+                var command = JsonConvert.DeserializeObject<DeviceCommand>(json);
+
+                if (command == null || string.IsNullOrWhiteSpace(command.Device) || string.IsNullOrWhiteSpace(command.Command))
+                    return await CreateResponseAsync(400, "Invalid payload format.");
+
+                if (!_opcManager.EnsureConnected())
+                    return await CreateResponseAsync(500, "OPC UA not connected.");
+
+                bool result = false;
+
+                switch (command.Command)
+                {
+                    case "EmergencyStop":
+                        result = _opcManager.EmergencyStop(command.Device);
+                        break;
+
+                    case "ResetErrorStatus":
+                        result = _opcManager.ResetErrorStatus(command.Device);
+                        break;
+
+                    default:
+                        return await CreateResponseAsync(404, $"Unknown command: {command.Command}");
+                }
+
+                if (result)
+                    return await CreateResponseAsync(200, $"Command '{command.Command}' executed on device '{command.Device}'.");
+                else
+                    return await CreateResponseAsync(500, $"Failed to execute '{command.Command}' on device '{command.Device}'.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[D2C] Błąd obsługi metody bezpośredniej: {ex.Message}");
+                return await CreateResponseAsync(500, "Internal server error.");
+            }
+        }
+
+        private Task<MethodResponse> CreateResponseAsync(int status, string message)
+        {
+            var payload = new { message };
+            var json = JsonConvert.SerializeObject(payload);
+            var bytes = Encoding.UTF8.GetBytes(json);
+            return Task.FromResult(new MethodResponse(bytes, status));
+        }
+
+        private class DeviceCommand
+        {
+            public string Device { get; set; } = string.Empty;
+            public string Command { get; set; } = string.Empty;
         }
     }
 }

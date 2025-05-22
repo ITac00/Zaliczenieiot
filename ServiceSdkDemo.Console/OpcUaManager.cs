@@ -28,6 +28,7 @@ namespace ServiceSdkDemo.Lib
                 _isConnected = false;
             }
         }
+
         public bool EnsureConnected()
         {
             try
@@ -47,7 +48,6 @@ namespace ServiceSdkDemo.Lib
                 return false;
             }
         }
-
 
         public List<OpcUaDevice> GetDevices()
         {
@@ -91,6 +91,36 @@ namespace ServiceSdkDemo.Lib
                 Console.WriteLine($"[OPC] Błąd podczas pobierania urządzeń: {ex.Message}");
                 return new List<OpcUaDevice>();
             }
+        }
+
+        public bool EmergencyStop(string deviceName)
+        {
+            if (!_devices.TryGetValue(deviceName, out var device))
+            {
+                GetDevices(); // Odśwież, jeśli nie znaleziono
+                if (!_devices.TryGetValue(deviceName, out device))
+                {
+                    Console.WriteLine($"[OPC] Nie znaleziono urządzenia '{deviceName}' do EmergencyStop.");
+                    return false;
+                }
+            }
+
+            return device.SetEmergencyStop(true);
+        }
+
+        public bool ResetErrorStatus(string deviceName)
+        {
+            if (!_devices.TryGetValue(deviceName, out var device))
+            {
+                GetDevices(); // Odśwież, jeśli nie znaleziono
+                if (!_devices.TryGetValue(deviceName, out device))
+                {
+                    Console.WriteLine($"[OPC] Nie znaleziono urządzenia '{deviceName}' do ResetErrorStatus.");
+                    return false;
+                }
+            }
+
+            return device.SetEmergencyStop(false);
         }
     }
 
@@ -162,8 +192,6 @@ namespace ServiceSdkDemo.Lib
                 return false;
             }
         }
-
-
 
         public bool SetEmergencyStop(bool status)
         {
