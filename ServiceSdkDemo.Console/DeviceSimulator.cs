@@ -20,7 +20,7 @@ namespace ServiceSdkDemo.Lib
 
         private readonly Dictionary<string, int> _lastErrorState = new();
 
-        public DeviceSimulator(string dummy, OpcUaManager opcManager) // "dummy" ignorowany
+        public DeviceSimulator(string dummy, OpcUaManager opcManager)
         {
             _opcManager = opcManager;
         }
@@ -72,7 +72,6 @@ namespace ServiceSdkDemo.Lib
                 var devices = _opcManager.GetDevices();
                 var currentDeviceNames = new HashSet<string>(devices.Select(d => d.Name));
 
-                // Usuń z mapy urządzenia, które zniknęły
                 var removed = _lastErrorState.Keys.Except(currentDeviceNames).ToList();
                 foreach (var name in removed)
                 {
@@ -86,7 +85,6 @@ namespace ServiceSdkDemo.Lib
                     {
                         device.Update();
 
-                        // Wysyłanie standardowej telemetrii
                         var telemetry = new
                         {
                             DeviceName = device.Name,
@@ -100,16 +98,18 @@ namespace ServiceSdkDemo.Lib
                         await SendMessageAsync(telemetry, token);
                         Console.WriteLine($"[D2C] Wysłano dane dla: {device.Name}");
 
-                        // Obsługa błędów
                         var currentErrors = device.DeviceErrors;
 
                         if (!_lastErrorState.ContainsKey(device.Name))
                         {
-                            _lastErrorState[device.Name] = 0; // Domyślnie zakładamy 0 jako stan początkowy
+                            _lastErrorState[device.Name] = 0;
                             Console.WriteLine($"[D2C] Zarejestrowano nowe urządzenie: {device.Name}");
                         }
 
-                        if (_lastErrorState[device.Name] != currentErrors)
+                        int previousErrors = _lastErrorState[device.Name];
+                        int newlySetErrors = currentErrors & ~previousErrors;
+
+                        if (newlySetErrors > 0)
                         {
                             var errorPayload = new
                             {
@@ -118,9 +118,10 @@ namespace ServiceSdkDemo.Lib
                             };
 
                             await SendMessageAsync(errorPayload, token);
-                            Console.WriteLine($"[D2C] [ZMIANA BŁĘDU] {device.Name}: {Convert.ToString(_lastErrorState[device.Name], 2).PadLeft(4, '0')} → {Convert.ToString(currentErrors, 2).PadLeft(4, '0')}");
-                            _lastErrorState[device.Name] = currentErrors;
+                            Console.WriteLine($"[D2C] [NOWE BŁĘDY] {device.Name}: {Convert.ToString(previousErrors, 2).PadLeft(4, '0')} → {Convert.ToString(currentErrors, 2).PadLeft(4, '0')}");
                         }
+
+                        _lastErrorState[device.Name] = currentErrors;
                     }
                     catch (Exception ex)
                     {
