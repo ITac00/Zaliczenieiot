@@ -16,18 +16,20 @@ namespace ServiceSdkDemo.Lib
         private readonly string _connectionStringPath = "device_connection.txt";
         private DeviceClient? _client;
         private CancellationTokenSource? _cts;
-        private Task? _sendTask;
+        private Task? _sendTelemetryTask;
+        private Task? _sendErrorTask;
 
         private readonly Dictionary<string, int> _lastErrorState = new();
 
-        public DeviceSimulator(string dummy, OpcUaManager opcManager)
+        public DeviceSimulator(string dummy, OpcUaManager opcManager) // "dummy" ignorowany
         {
             _opcManager = opcManager;
         }
 
         public void Start()
         {
-            if (_sendTask != null && !_sendTask.IsCompleted)
+            if ((_sendTelemetryTask != null && !_sendTelemetryTask.IsCompleted) ||
+                (_sendErrorTask != null && !_sendErrorTask.IsCompleted))
             {
                 Console.WriteLine("[D2C] Telemetria już działa.");
                 return;
@@ -43,7 +45,9 @@ namespace ServiceSdkDemo.Lib
             _client = DeviceClient.CreateFromConnectionString(connectionString, TransportType.Mqtt);
             _cts = new CancellationTokenSource();
 
-            _sendTask = Task.Run(() => SendLoop(_cts.Token));
+            _sendTelemetryTask = Task.Run(() => SendTelemetryLoop(_cts.Token));
+            _sendErrorTask = Task.Run(() => SendErrorLoop(_cts.Token));
+
             Console.WriteLine("[D2C] Telemetria uruchomiona.");
         }
 
@@ -58,7 +62,7 @@ namespace ServiceSdkDemo.Lib
             }
         }
 
-        private async Task SendLoop(CancellationToken token)
+        private async Task SendTelemetryLoop(CancellationToken token)
         {
             while (!token.IsCancellationRequested)
             {
@@ -70,14 +74,6 @@ namespace ServiceSdkDemo.Lib
                 }
 
                 var devices = _opcManager.GetDevices();
-                var currentDeviceNames = new HashSet<string>(devices.Select(d => d.Name));
-
-                var removed = _lastErrorState.Keys.Except(currentDeviceNames).ToList();
-                foreach (var name in removed)
-                {
-                    _lastErrorState.Remove(name);
-                    Console.WriteLine($"[D2C] Usunięto z mapy stanów: {name}");
-                }
 
                 foreach (var device in devices)
                 {
@@ -97,6 +93,42 @@ namespace ServiceSdkDemo.Lib
 
                         await SendMessageAsync(telemetry, token);
                         Console.WriteLine($"[D2C] Wysłano dane dla: {device.Name}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[D2C] Błąd przy urządzeniu '{device.Name}': {ex.Message}");
+                    }
+                }
+
+                await Task.Delay(5000, token);
+            }
+        }
+
+        private async Task SendErrorLoop(CancellationToken token)
+        {
+            while (!token.IsCancellationRequested)
+            {
+                if (!_opcManager.EnsureConnected())
+                {
+                    await Task.Delay(100, token);
+                    continue;
+                }
+
+                var devices = _opcManager.GetDevices();
+                var currentDeviceNames = new HashSet<string>(devices.Select(d => d.Name));
+
+                var removed = _lastErrorState.Keys.Except(currentDeviceNames).ToList();
+                foreach (var name in removed)
+                {
+                    _lastErrorState.Remove(name);
+                    Console.WriteLine($"[D2C] Usunięto z mapy stanów: {name}");
+                }
+
+                foreach (var device in devices)
+                {
+                    try
+                    {
+                        device.Update();
 
                         var currentErrors = device.DeviceErrors;
 
@@ -111,14 +143,22 @@ namespace ServiceSdkDemo.Lib
 
                         if (newlySetErrors > 0)
                         {
-                            var errorPayload = new
+                            for (int bit = 0; bit < 32; bit++) // assuming 32-bit error field
                             {
-                                DeviceName = device.Name,
-                                DeviceErrors = currentErrors
-                            };
+                                int mask = 1 << bit;
+                                if ((newlySetErrors & mask) != 0)
+                                {
+                                    var errorPayload = new
+                                    {
+                                        DeviceName = device.Name,
+                                        ErrorBit = bit,
+                                        ErrorCode = mask
+                                    };
 
-                            await SendMessageAsync(errorPayload, token);
-                            Console.WriteLine($"[D2C] [NOWE BŁĘDY] {device.Name}: {Convert.ToString(previousErrors, 2).PadLeft(4, '0')} → {Convert.ToString(currentErrors, 2).PadLeft(4, '0')}");
+                                    await SendMessageAsync(errorPayload, token);
+                                    Console.WriteLine($"[D2C] [NOWY BŁĄD] {device.Name} → Bit {bit} (0x{mask:X})");
+                                }
+                            }
                         }
 
                         _lastErrorState[device.Name] = currentErrors;
@@ -129,9 +169,10 @@ namespace ServiceSdkDemo.Lib
                     }
                 }
 
-                await Task.Delay(5000, token);
+                await Task.Delay(100, token);
             }
         }
+
 
         private async Task SendMessageAsync(object payload, CancellationToken token)
         {
